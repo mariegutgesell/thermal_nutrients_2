@@ -79,7 +79,7 @@ nutrients_all_noout <- nutrients_all_noout %>%
 ##trying outliers by removing any values outside of the FAO/INFOODS range for finfish - filtering within 1 order of magnitude of FAO range 
 nutrients_all_noout_2 <- nutrients %>%
   mutate(outlier_calcium = ifelse(Nutrient_Name == "Calcium (mg)" & Value > 1000, "outlier", "no")) %>%
-  mutate(outlier_calcium2 = ifelse(Nutrient_Name == "Calcium (mg)" & Value < 0, "outlier", "no")) %>%
+  mutate(outlier_calcium2 = ifelse(Nutrient_Name == "Calcium (mg)" & Value < 0.00001, "outlier", "no")) %>%
   mutate(outlier_iron = ifelse(Nutrient_Name == "Iron (mg)" & Value > 100, "outlier", "no")) %>%
   mutate(outlier_iron2 = ifelse(Nutrient_Name == "Iron (mg)" & Value < 0.1, "outlier", "no")) %>%
   mutate(outlier_selenium = ifelse(Nutrient_Name == "Selenium (ug)" & Value > 1000, "outlier", "no"))  %>%
@@ -107,7 +107,7 @@ write.csv(nutrients_all_noout_2, "data/processed_data/Nutrient_data_all_outliers
 ##df of outliers (same as above, just keeps the outliers)
 outliers <- nutrients %>%
   mutate(outlier_calcium = ifelse(Nutrient_Name == "Calcium (mg)" & Value > 1000, "outlier", "no")) %>%
-  mutate(outlier_calcium2 = ifelse(Nutrient_Name == "Calcium (mg)" & Value < 0, "outlier", "no")) %>%
+  mutate(outlier_calcium2 = ifelse(Nutrient_Name == "Calcium (mg)" & Value < 0.00001, "outlier", "no")) %>%
   mutate(outlier_iron = ifelse(Nutrient_Name == "Iron (mg)" & Value > 100, "outlier", "no")) %>%
   mutate(outlier_iron2 = ifelse(Nutrient_Name == "Iron (mg)" & Value < 0.1, "outlier", "no")) %>%
   mutate(outlier_selenium = ifelse(Nutrient_Name == "Selenium (ug)" & Value > 1000, "outlier", "no"))  %>%
