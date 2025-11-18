@@ -44,6 +44,16 @@ nutrient_df <- read.csv("data/processed_data/Nutrient_data_all_outliers_removed.
 ##species traits -- could only include species where have all traits 
 sp_all <- read.csv("data/species_list/master_sp_list_clean.csv") 
 
+test <- sp_all %>%
+  filter(nutrient_data == "Y")
+test2 <- sp_all %>%
+  filter(ctmax_estimate=="Y")
+
+test3 <- sp_all %>%
+  filter(nutrient_data == "Y" & ctmax_estimate == "Y") %>%
+  dplyr::select(sci_name) %>%
+  unique()
+
 sp_all_traits <- sp_all %>%
   mutate(habitat_score = case_when(
     Fresh == 1 & Brack == 0 & Saltwater == 0 ~ 1,
