@@ -104,10 +104,7 @@ analysis_df <- nutrient_df %>%
   left_join(ctmax_sp, by = "sci_name") %>%
   left_join(traits_sp, by = "sci_name")
 
-analysis_df_2 <- nutrient_df %>%
-  left_join(ctmax_df, by = "sci_name", relationship = "many-to-many") %>%
-  left_join(traits_sp, by = "sci_name") %>%
-  rename(CTmax = "TL_p_fw_mean")
+
 
 ##some imputed values missing for species they had thermal data for? that is odd.. but is true
 ##for 6 of the ones we have ctmax estimate for, don't have an imputed CTmax 
@@ -211,23 +208,23 @@ lmer_function <- function(x, nutrient) {
 
 
 dha = lmer_function(analysis_df, "DHA (g)")
-dha$best_model_summary
+dha$best_model_summary ##56 sp
 dha_plot <- dha$plot_sig
 dha_plot
 
 epa = lmer_function(analysis_df, "EPA (g)")
-epa$best_model_summary
+epa$best_model_summary ##56 sp
 epa_plot <- epa$plot_sig
 epa_plot
 
 pro = lmer_function(analysis_df, "Protein (g)")
-pro$best_model_summary
+pro$best_model_summary ##64 sp
 pro_plot <- pro$plot_sig
 epa_plot
 
 
 fat = lmer_function(analysis_df, "Total Fat (g)")
-fat$best_model_summary
+fat$best_model_summary ##63 ind
 fat_plot <- fat$plot_marginal_sig
 fat_plot
 
@@ -360,6 +357,122 @@ lmer_results_clean <- lmer_results %>%
 
 # Write to CSV
 write.csv(lmer_results_clean, "tables/lmer_best_models_summary_ctmax.csv", row.names = FALSE)
+
+
+
+###Hierarchical Linear Mixed Effects Model -- ONLY FOR CTMAX AND NUTRIENTS
+
+options(na.action = "na.fail")
+
+lmer_function_ctmax_only <- function(x, nutrient) {
+  df <- x %>%
+    filter(Nutrient_Name == nutrient) %>%
+    dplyr::select(sci_name, CTmax, body_part_2, Nutrient_Name, Value) %>%
+    mutate(across(c(CTmax),
+                  ~ scale(.x)[,1]))%>%
+    na.omit() %>%##need to run model where all predictor variables are present, this does reduce 
+    filter(body_part_2 %in% c("muscle (with and without organs)", "whole"))
+  
+  ##full model
+  lmer_full <- lmer(log(Value) ~ CTmax + (1|sci_name), data = df, REML = FALSE)
+  lmer_full_summary <- summary(lmer_full)
+
+  
+  v <- visreg(lmer_full, "CTmax", partial = TRUE, plot = FALSE)
+  plot_sig <- ggplot() +
+    geom_line(data = v$fit, aes(x = CTmax, y = visregFit), color = "red", linewidth = 1) +
+    geom_ribbon(data = v$fit, aes(x = CTmax, ymin = visregLwr, ymax = visregUpr), alpha = 0.2) +
+    geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+    theme_classic() +
+    theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+    labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  
+  plot_marginal_sig <- ggplot() +
+    geom_line(data = v$fit, aes(x = CTmax, y = visregFit), color = "red", linewidth = 1, linetype = "dashed") +
+    geom_ribbon(data = v$fit, aes(x = CTmax, ymin = visregLwr, ymax = visregUpr), alpha = 0.2) +
+    geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+    theme_classic() +
+    theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+    labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  plot_no_sig <- ggplot() +
+    geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+    theme_classic() +
+    theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+    labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  return(list(
+    data = df,
+    lmer_full_summary = lmer_full_summary,
+    plot_sig = plot_sig,
+    plot_marginal_sig = plot_marginal_sig,
+    plot_no_sig = plot_no_sig
+  ))
+  
+}
+
+
+
+dha = lmer_function_ctmax_only(analysis_df, "DHA (g)")
+dha$lmer_full_summary ##68 ind
+dha_plot <- dha$plot_sig
+dha_plot
+
+epa = lmer_function_ctmax_only(analysis_df, "EPA (g)")
+epa$lmer_full_summary ##68 ind
+epa_plot <- epa$plot_sig
+epa_plot
+
+pro = lmer_function_ctmax_only(analysis_df, "Protein (g)")
+pro$lmer_full_summary ##93 sp
+pro_plot <- pro$plot_sig
+pro_plot
+
+
+fat = lmer_function_ctmax_only(analysis_df, "Total Fat (g)")
+fat$lmer_full_summary ##81 sp
+fat_plot <- fat$plot_sig
+fat_plot
+
+
+calcium = lmer_function_ctmax_only(analysis_df, "Calcium (mg)")
+calcium$lmer_full_summary ##73 sp
+cal_plot <- calcium$plot_sig
+cal_plot
+
+fe= lmer_function_ctmax_only(analysis_df, "Iron (mg)")
+fe$lmer_full_summary ##76 sp
+fe_plot <- fe$plot_sig
+fe_plot
+
+
+zn= lmer_function_ctmax_only(analysis_df, "Zinc (mg)")
+zn$lmer_full_summary ##73 sp
+zn_plot <- zn$plot_sig
+zn_plot
+
+sel= lmer_function_ctmax_only(analysis_df, "Selenium (ug)")
+sel$lmer_full_summary ##61 sp
+sel_plot <- sel$plot_sig
+sel_plot
+
+
+va= lmer_function_ctmax_only(analysis_df, "Vitamin A (ug)")
+va$lmer_full_summary ##24 sp
+va_plot <- va$plot_no_sig
+va_plot
+
+###Playing around with potential figures for MS
+
+macro_plot <- ggarrange(pro_plot, fat_plot, epa_plot, dha_plot, nrow = 2, ncol = 2, labels = c("a)", "b)", "c)", "d)"), font.label = list(colour = "black", size = 14))
+macro_plot
+
+plot1 <- ggarrange(sel_plot, zn_plot, va_plot, nrow = 1, ncol = 3, labels = c("c)", "d)", "e)"),  font.label = list(colour = "black", size = 14))
+plot2 <- ggarrange(cal_plot, fe_plot,nrow = 1, ncol = 2, labels = c("a)", "b)"), font.label = list(colour = "black", size = 14))
+
+micro_plot <-  ggarrange(plot2, plot1, nrow=2, ncol =1 )
+micro_plot
 
 
 
