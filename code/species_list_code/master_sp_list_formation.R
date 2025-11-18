@@ -80,8 +80,13 @@ sp_all_2 <- left_join(sp_all, sp_fams, by = c("Genus", "Species")) %>%
 #Brama
 
 ##Get trait data for each species 
+#update.packages()
+#remotes::install_github("cboettig/duckdbfs")
+#remotes::install_github("ropensci/rfishbase")
+#install.packages("duckdb")
 library(rfishbase)
 library(duckdb)
+library(duckdbfs)
 ##Import tables of fish trait data
 available_releases()
 fb_tables(server = c("fishbase"), version = "latest") ##note, some packages seem to mess w/ fishbase, try restarting r session and only load fishbase if having issues
@@ -92,17 +97,31 @@ fb_morph <- fb_tbl("species") %>%
   filter(sci_name %in% sp_all_2$sci_name) %>%
   dplyr::select(SpecCode, Genus, Species, sci_name, SpeciesRefNo, FBname, Fresh,Brack, Saltwater, LongevityWild, Vulnerability, Length, LTypeMaxM, CommonLength, LTypeComM, Weight, Importance)
 ##has morph data for 176/178 GL species -- fb missing: Moxostoma duquesnii, Notropis buccatus
-missing_sp_morph <- anti_join(gl_sp_all, fb_morph, by = c("sci_name"))
+missing_sp_morph <- anti_join(gl_sp_list, fb_morph, by = c("sci_name"))
 
 ##Extract trophic data 
 gl_tp <- ecology(species_list = sp_all_2$sci_name, fields = NULL,server = getOption("FISHBASE_API", "fishbase")) %>%
   dplyr::select(SpecCode, Species, DietTroph, DietSeTroph, DietRemark, FoodTroph, FoodSeTroph, FoodRemark) %>%
   dplyr::rename(sci_name = "Species")
 
+
+
+fields_eco <- c("SpecCode","Species","DemersPelag","Habitat","FeedingType")
+##looking for growth data
+fb_growth <- fb_tbl("popgrowth") %>%
+  select(SpecCode, TLinfinity, K) %>%
+  filter(SpecCode %in% fb_morph$SpecCode) %>%
+  group_by(SpecCode) %>%
+  summarise_at(vars(TLinfinity, K), list(mean = mean, sd = sd))
+
+
 sp_all_3 <- left_join(sp_all_2, fb_morph, by = c("Genus", "Species", "sci_name")) %>%
-  left_join(gl_tp, by = "sci_name")
+  left_join(gl_tp, by = c("sci_name", "SpecCode")) %>%
+  left_join(fb_growth, by = "SpecCode")
 
-
+##potential other tables to look at:  "diet -NO",  "diet_items - same as in ecology table" "ecosystem -NO", "fooditems-nO", "foodtroph-NO"
+#table <- fb_tbl("foodtroph")
+##could maybe be interesting to look at axis for fast-slow? 
 write.csv(sp_all_3, "data/species_list/master_sp_list_clean.csv")
 
 ##need to check some duplicates for the trophic position stuff
