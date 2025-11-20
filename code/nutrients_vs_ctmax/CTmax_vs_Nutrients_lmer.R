@@ -64,11 +64,19 @@ sp_all_traits <- sp_all %>%
     Fresh == 1 & Brack == 1 & Saltwater == 1 ~ 4,
     TRUE ~ NA_real_
   )) %>%
-  mutate(habitat = case_when(
+  mutate(habitat_specific = case_when(
     Fresh == 1 & Brack == 0 & Saltwater == 0 ~ "freshwater",
     Fresh == 1 & Brack == 1 & Saltwater == 0 ~ "freshwater_brackish",
     Fresh == 0 & Brack == 1 & Saltwater == 0 ~ "brackish",
     Fresh == 0 & Brack == 1 & Saltwater == 1 ~ "brackish_salt",
+    Fresh == 0 & Brack == 0 & Saltwater == 1 ~ "saltwater",
+    Fresh == 1 & Brack == 1 & Saltwater == 1 ~ "freshwater_brackish_saltwater",
+  )) %>%
+  mutate(habitat = case_when(
+    Fresh == 1 & Brack == 0 & Saltwater == 0 ~ "freshwater",
+    Fresh == 1 & Brack == 1 & Saltwater == 0 ~ "freshwater",
+    Fresh == 0 & Brack == 1 & Saltwater == 0 ~ "brackish",
+    Fresh == 0 & Brack == 1 & Saltwater == 1 ~ "saltwater",
     Fresh == 0 & Brack == 0 & Saltwater == 1 ~ "saltwater",
     Fresh == 1 & Brack == 1 & Saltwater == 1 ~ "freshwater_brackish_saltwater",
   )) %>%
@@ -130,7 +138,7 @@ corrplot(corr_mat, method = "color", type = "upper",  addCoef.col = "black",
 ##don't have significant correlations -- only choose one of common length or max length 
 
 
-###Hierarchical Linear Mixed Effects Model
+###Hierarchical Linear Mixed Effects Model -- constrained to models w/ ctmax---------------------------
 options(na.action = "na.fail")
 
 lmer_function <- function(x, nutrient) {
@@ -150,8 +158,8 @@ lmer_function <- function(x, nutrient) {
   model_set 
 
   ##potential averagin approach: 
-  avg_mod <- model.avg(model_set, subset = delta < 2)
-  summary(avg_mod)
+ # avg_mod <- model.avg(model_set, subset = delta < 2)
+#  summary(avg_mod)
 
   ##select the best model - don't just do this if more than 1 good model 
   top_models <- subset(model_set, delta < 2)
@@ -220,12 +228,12 @@ epa_plot
 pro = lmer_function(analysis_df, "Protein (g)")
 pro$best_model_summary ##64 sp
 pro_plot <- pro$plot_sig
-epa_plot
+pro_plot
 
 
 fat = lmer_function(analysis_df, "Total Fat (g)")
 fat$best_model_summary ##63 ind
-fat_plot <- fat$plot_marginal_sig
+fat_plot <- fat$plot_no_sig
 fat_plot
 
 
@@ -359,8 +367,227 @@ lmer_results_clean <- lmer_results %>%
 write.csv(lmer_results_clean, "tables/lmer_best_models_summary_ctmax.csv", row.names = FALSE)
 
 
+###Hierarchical Linear Mixed Effects Model -- not constrained to models w/ ctmax---------------------------
+options(na.action = "na.fail")
 
-###Hierarchical Linear Mixed Effects Model -- ONLY FOR CTMAX AND NUTRIENTS
+lmer_function_unconstrained <- function(x, nutrient) {
+  df <- x %>%
+    filter(Nutrient_Name == nutrient) %>%
+    na.omit() %>%##need to run model where all predictor variables are present, this does reduce 
+    mutate(across(c(CTmax, Length,  LongevityWild,  FoodTroph, K_mean),
+                  ~ scale(.x)[,1]))%>%
+    filter(body_part_2 %in% c("muscle (with and without organs)", "whole"))
+  
+  ##full model
+  lmer_full <- lmer(log(Value) ~ CTmax + Length + LongevityWild + K_mean + habitat+  (1|sci_name), data = df, REML = FALSE)
+  summary(lmer_full)
+  
+  ##run AIC on all models using dredging approach -- compares all possible nest models constrained to those w/ CTmax
+  model_set <- dredge(lmer_full)
+  model_set 
+  
+  ##potential averagin approach: 
+  # avg_mod <- model.avg(model_set, subset = delta < 2)
+  #  summary(avg_mod)
+  
+  ##select the best model - don't just do this if more than 1 good model 
+  top_models <- subset(model_set, delta < 2)
+  top_models
+  # index of the most parsimonious model (smallest df)
+  best_idx <- which.min(top_models$df)
+  
+  # get all models in the ΔAIC < 2 set:
+  top_model_list <- get.models(model_set, subset = delta < 2)
+  
+  # pick the most parsimonious one:
+  best_model <- top_model_list[[best_idx]]
+  best_model_summary <- summary(best_model)
+  best_model
+  
+  
+ # v <- visreg(best_model, "CTmax", partial = TRUE, plot = FALSE)
+#  plot_sig <- ggplot() +
+  #  geom_line(data = v$fit, aes(x = CTmax, y = visregFit), color = "red", linewidth = 1) +
+  #  geom_ribbon(data = v$fit, aes(x = CTmax, ymin = visregLwr, ymax = visregUpr), alpha = 0.2) +
+   # geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+  #  theme_classic() +
+  #  theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+   # labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  
+ # plot_marginal_sig <- ggplot() +
+  #  geom_line(data = v$fit, aes(x = CTmax, y = visregFit), color = "red", linewidth = 1, linetype = "dashed") +
+  #  geom_ribbon(data = v$fit, aes(x = CTmax, ymin = visregLwr, ymax = visregUpr), alpha = 0.2) +
+  #  geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+  #  theme_classic() +
+  #  theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+  #  labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  #plot_no_sig <- ggplot() +
+   # geom_point(data = v$res, aes(x = CTmax, y = visregRes), size = 2) +
+  #  theme_classic() +
+   # theme(axis.text = element_text(size = 14), axis.title = element_text(size = 16)) +
+  #  labs(x = "Mean Estimated CTmax (˚C)", y = paste("Log", nutrient))
+  
+  return(list(
+    data = df,
+    model_set = model_set,
+    top_models = top_models,
+    best_model = best_model,
+    best_model_summary = best_model_summary
+   # plot_sig = plot_sig,
+  #  plot_marginal_sig = plot_marginal_sig,
+   # plot_no_sig = plot_no_sig
+  ))
+  
+}
+
+
+
+dha = lmer_function_unconstrained(analysis_df, "DHA (g)")
+dha$best_model_summary ##56 sp
+#dha_plot <- dha$plot_sig
+#dha_plot
+
+epa = lmer_function_unconstrained(analysis_df, "EPA (g)")
+epa$best_model_summary ##56 sp
+#epa_plot <- epa$plot_sig
+#epa_plot
+
+pro = lmer_function_unconstrained(analysis_df, "Protein (g)")
+pro$best_model_summary ##64 sp
+#pro_plot <- pro$plot_sig
+#pro_plot
+
+
+fat = lmer_function_unconstrained(analysis_df, "Total Fat (g)")
+fat$best_model_summary ##63 ind
+#fat_plot <- fat$plot_no_sig
+#fat_plot
+
+
+calcium = lmer_function_unconstrained(analysis_df, "Calcium (mg)")
+calcium$best_model_summary
+#cal_plot <- calcium$plot_sig
+#cal_plot
+
+fe= lmer_function_unconstrained(analysis_df, "Iron (mg)")
+fe$best_model_summary
+#fe_plot <- fe$plot_sig
+#fe_plot
+
+
+zn= lmer_function_unconstrained(analysis_df, "Zinc (mg)")
+zn$best_model_summary
+#zn_plot <- zn$plot_sig
+#zn_plot
+
+sel= lmer_function_unconstrained(analysis_df, "Selenium (ug)")
+sel$best_model_summary
+#sel_plot <- sel$plot_sig
+#sel_plot
+
+
+va= lmer_function_unconstrained(analysis_df, "Vitamin A (ug)")
+va$best_model_summary
+#va_plot <- va$plot_no_sig
+#va_plot
+
+
+
+##Make summary table of results 
+extract_lmer_summary <- function(model, response_name) {
+  smry <- summary(model)
+  
+  # AIC and residual df
+  aic_val  <- round(AIC(model), 2)
+  df_resid <- df.residual(model)
+  
+  # Marginal and conditional R2 (if MuMIn is available)
+  R2_m <- R2_c <- NA_real_
+  if (requireNamespace("MuMIn", quietly = TRUE)) {
+    r2_vals <- MuMIn::r.squaredGLMM(model)
+    R2_m <- r2_vals[1, "R2m"]
+    R2_c <- r2_vals[1, "R2c"]
+  }
+  
+  # Fixed-effects table
+  coefs <- as.data.frame(smry$coefficients)
+  coefs$Term <- rownames(coefs)
+  rownames(coefs) <- NULL
+  
+  # If there is no p-value column (plain lme4), approximate from t-values
+  if (!"Pr(>|t|)" %in% names(coefs)) {
+    if ("t value" %in% names(coefs)) {
+      coefs$`Pr(>|t|)` <- 2 * (1 - pnorm(abs(coefs$`t value`)))
+    } else if ("t-value" %in% names(coefs)) {
+      coefs$`Pr(>|t|)` <- 2 * (1 - pnorm(abs(coefs$`t-value`)))
+    } else {
+      coefs$`Pr(>|t|)` <- NA_real_
+    }
+  }
+  
+  fixed <- coefs %>%
+    dplyr::transmute(
+      Response       = response_name,
+      Term           = Term,
+      Estimate       = round(Estimate, 3),
+      Std_Error      = round(`Std. Error`, 3),
+      Stat_Value     = round(`t value`, 3),
+      P_Value        = round(`Pr(>|t|)`, 3),
+      R2_marginal    = "",
+      R2_conditional = "",
+      AIC            = "",
+      DF_resid       = ""
+    )
+  
+  # Put model-level metrics in the first row
+  fixed$R2_marginal[1]    <- if (!is.na(R2_m)) round(R2_m, 3) else ""
+  fixed$R2_conditional[1] <- if (!is.na(R2_c)) round(R2_c, 3) else ""
+  fixed$AIC[1]            <- aic_val
+  fixed$DF_resid[1]       <- df_resid
+  
+  # Convert everything to character for easy binding / CSV export
+  fixed <- fixed %>%
+    dplyr::mutate(across(everything(), as.character))
+  
+  fixed
+}
+
+
+models_lmer <- list(
+  Protein = pro$best_model,
+  TotalFat = fat$best_model,
+  EPA     = epa$best_model,
+  DHA     = dha$best_model,
+  Calcium = calcium$best_model,
+  Iron = fe$best_model,
+  Zinc    = zn$best_model,
+  Selenium = sel$best_model,
+  VitaminA = va$best_model
+  
+  
+)
+models_lmer
+
+
+library(purrr)
+library(dplyr)
+
+lmer_results <- map_dfr(names(models_lmer), function(nm) {
+  extract_lmer_summary(models_lmer[[nm]], response_name = nm)
+})
+
+# Optional: replace NA/blank with "" for clean CSV
+lmer_results_clean <- lmer_results %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), "", .)))
+
+# Write to CSV
+write.csv(lmer_results_clean, "tables/lmer_best_models_summary_ctmax_unconstrained.csv", row.names = FALSE)
+
+
+
+###Hierarchical Linear Mixed Effects Model -- ONLY FOR CTMAX AND NUTRIENTS ----------------------
 
 options(na.action = "na.fail")
 
@@ -473,6 +700,12 @@ plot2 <- ggarrange(cal_plot, fe_plot,nrow = 1, ncol = 2, labels = c("a)", "b)"),
 
 micro_plot <-  ggarrange(plot2, plot1, nrow=2, ncol =1 )
 micro_plot
+
+
+
+
+
+
 
 
 
