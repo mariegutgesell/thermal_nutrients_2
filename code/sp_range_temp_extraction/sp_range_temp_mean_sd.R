@@ -14,7 +14,8 @@ fw_temp_all <- read.csv("data/intermediate_data/fw_temp_all.csv") %>%
 temp_df <- rbind(fw_temp_all, sst_temp_all)
 
 sp_all <- read.csv("data/species_list/master_sp_list_clean.csv") %>%
-  dplyr::select(Family:gl_fish)
+  dplyr::select(Family:gl_fish) %>%
+  distinct()
 
 
 temp_df_mean_sd <- temp_df %>%
@@ -29,14 +30,19 @@ write.csv(temp_df_mean_sd, "data/processed_data/All_sp_temp_mean_sd_HadISST_FW.c
 test <- temp_df_mean_sd %>%
   filter(is.na(sd_temp))
 ##Create a normal distribution using mean and SD for each fish, and then use monte carlo simulation to extract 30 temps for each fish
+library(truncnorm)
 set.seed(123)
 simulation_results <- lapply(1:nrow(temp_df_mean_sd), function(i) {
   species <- temp_df_mean_sd$sci_name[i]
   mean_temp <- temp_df_mean_sd$mean_temp[i]
   sd_temp <- temp_df_mean_sd$sd_temp[i]
   
+  ##create bounds so not sampling from extremes of normal distribution
+  lower <- qnorm(0.05, mean_temp, sd_temp)
+  upper <- qnorm(0.95, mean_temp, sd_temp)
+  
   # Simulate 30 temperatures
-  simulated_temps <- rnorm(30, mean = mean_temp, sd = sd_temp)
+  simulated_temps <- rtruncnorm(30, a = lower, b = upper, mean = mean_temp, sd = sd_temp)
   
   # Create a data frame for this species
   data.frame(species = species, temperature = simulated_temps)

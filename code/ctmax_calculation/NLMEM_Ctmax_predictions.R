@@ -183,7 +183,7 @@ rm(list = ls()[! ls() %in% c("tn3.coef", "tn3.nlme")])
 
 ##UPDATE  CODE BELOW HERE FOR GLOBAL SPECIES ANALYSIS ==================
 #Read in 30 temps for each species, based on monte-carlo draws from normal distribution using meand and sd of temp across species range  ==============
-temp_all <- read.csv("data/processed_data/All_sp_acclim_temp_estimates_HadISST_FW.csv") %>% #####see end of All_sp_extract_water_temp_SST.R for code to generate this
+temp_all <- read.csv("data/processed_data/All_sp_acclim_temp_estimates_HadISST_FW.csv") %>% #####see end of All_sp_extract_water_temp_SST.R and sp_range_temp_mean_sd.R for code to generate this
   filter(nutrient_data == "Y" & ctmax_estimate == "Y") %>%
   dplyr::select(sci_name, temperature) %>%
   dplyr::rename(Species = "sci_name") 
